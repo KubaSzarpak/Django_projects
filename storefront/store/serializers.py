@@ -37,15 +37,63 @@ class ReviewSerializer(serializers.ModelSerializer):
         return Review.objects.create(product_id=product_id, **validated_data)
 
 
-class CartSerializer(serializers.ModelSerializer):
+class SimpleProductSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(read_only=True)
+    price = serializers.DecimalField(max_digits=6, decimal_places=2, read_only=True)
+
     class Meta:
-        model = Cart
-        fields = ['created_at']
+        model = Product
+        fields = ['id', 'title', 'price']
 
 
 class CartItemSerializer(serializers.ModelSerializer):
+    cart = serializers.PrimaryKeyRelatedField(read_only=True)
+    product = SimpleProductSerializer()
+    total_price = serializers.SerializerMethodField(method_name='get_total_price')
+
     class Meta:
         model = CartItem
-        fields = ['cart', 'product', 'quantity']
+        fields = ['id', 'cart', 'product', 'quantity', 'total_price']
 
-    cart = serializers.PrimaryKeyRelatedField(read_only=True)
+    def get_total_price(self, cart_item: CartItem):
+        return cart_item.quantity * cart_item.product.price
+
+
+class AddCartItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CartItem
+        fields = ['id', 'product', 'quantity']
+
+    def save(self, **kwargs):
+        cart_id = self.context['cart_id']
+        product_id = self.validated_data['product'].id
+        quantity = self.validated_data['quantity']
+
+        try:
+            item = CartItem.objects.get(cart_id=cart_id, product_id=product_id)
+            item.quantity += quantity
+            item.save()
+            self.instance = item
+        except CartItem.DoesNotExist:
+            self.instance = CartItem.objects.create(cart_id=cart_id, **self.validated_data)
+
+        return self.instance
+
+
+class UpdateCartItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CartItem
+        fields = ['quantity']
+
+
+class CartSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(read_only=True)
+    items = CartItemSerializer(many=True, read_only=True)
+    total_price = serializers.SerializerMethodField(method_name='get_total_price')
+
+    class Meta:
+        model = Cart
+        fields = ['id', 'items', 'total_price']
+
+    def get_total_price(self, cart: Cart):
+        return sum([item.quantity * item.product.price for item in cart.items.all()])
