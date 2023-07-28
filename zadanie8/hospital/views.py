@@ -1,5 +1,6 @@
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from rest_framework.mixins import ListModelMixin
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Doctor, Prescription
 from .serializers import DoctorSerializer, PrescriptionSerializer
 
@@ -9,6 +10,11 @@ from .serializers import DoctorSerializer, PrescriptionSerializer
 class DoctorViewSet(ModelViewSet):
     queryset = Doctor.objects.all()
     serializer_class = DoctorSerializer
+
+    def get_permissions(self):
+        if self.request.method == 'GET':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
 
 class PrescriptionViewSet(ListModelMixin,
