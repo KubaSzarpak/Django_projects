@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, Collection, Review, Cart, CartItem
+from .models import Product, Collection, Review, Cart, CartItem, Customer
 from decimal import Decimal
 
 
@@ -97,3 +97,11 @@ class CartSerializer(serializers.ModelSerializer):
 
     def get_total_price(self, cart: Cart):
         return sum([item.quantity * item.product.price for item in cart.items.all()])
+
+
+class CustomerSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Customer
+        fields = ['id', 'user_id', 'phone', 'birth_date', 'membership']
