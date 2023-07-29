@@ -5,11 +5,25 @@ from rest_framework import status
 from rest_framework.viewsets import ModelViewSet, GenericViewSet
 from rest_framework.mixins import CreateModelMixin, RetrieveModelMixin, DestroyModelMixin
 from rest_framework.filters import SearchFilter
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
-from .models import Product, Collection, OrderItem, Review, Cart, CartItem, Customer
-from .serializers import ProductSerializer, CollectionSerializer, ReviewSerializer, CartSerializer, CartItemSerializer, \
-    AddCartItemSerializer, UpdateCartItemSerializer, CustomerSerializer
+from .models import (
+    Product,
+    Collection,
+    OrderItem,
+    Review,
+    Cart,
+    CartItem,
+    Customer, Order)
+from .serializers import (
+    ProductSerializer,
+    CollectionSerializer,
+    ReviewSerializer,
+    CartSerializer,
+    CartItemSerializer,
+    AddCartItemSerializer,
+    UpdateCartItemSerializer,
+    CustomerSerializer, OrderSerializer, CreateOrderSerializer, UpdateOrderSerializer)
 
 
 # Create your views here.
@@ -89,7 +103,11 @@ class CustomerViewSet(CreateModelMixin,
 
     @action(detail=False, methods=['GET', 'PUT'])
     def me(self, request):
-        (customer, created) = Customer.objects.get_or_create(user_id=request.user.id)
+        try:
+            customer = Customer.objects.get(user_id=request.user.id)
+        except Customer.DoesNotExist:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
         if request.method == 'GET':
             serializer = CustomerSerializer(customer)
             return Response(serializer.data)
@@ -98,3 +116,37 @@ class CustomerViewSet(CreateModelMixin,
             serializer.is_valid(raise_exception=True)
             serializer.save()
             return Response(serializer.data)
+
+
+class OrderViewSet(ModelViewSet):
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_permissions(self):
+        if self.request.method in ['PATCH', 'DELETE']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    def create(self, request, *args, **kwargs):
+        print(request.data)
+        serializer = CreateOrderSerializer(data=request.data,
+                                           context={'user_id': self.request.user.id})
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
+
+        serializer = OrderSerializer(order)
+        return Response(serializer.data)
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return CreateOrderSerializer
+        elif self.request.method == 'PATCH':
+            return UpdateOrderSerializer
+        return OrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Order.objects.prefetch_related('items__product')
+
+        customer = Customer.objects.get(user_id=user.id)
+        return Order.objects.filter(customer=customer).prefetch_related('items__product')
