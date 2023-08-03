@@ -17,11 +17,13 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+prefix = 'api/'
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('playground/', include('playground.urls')),
     path('store/', include('store.urls')),
-    path("__debug__/", include('debug_toolbar.urls')),
+    path('__debug__/', include('debug_toolbar.urls')),
     path('auth/', include('djoser.urls')),
     path('auth/', include('djoser.urls.jwt')),
 ]
